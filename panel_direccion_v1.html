@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📈 Panel Dirección — FASTA JP II</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#f4f6fa; --card:#fff; --text1:#1e2761; --text2:#2e2e2e; --text3:#5a6b74;
+  --border:#dde5e9; --ok:#2e7d4a; --warn:#d97706; --err:#a34434; --info:#1d3a5f;
+  --accent:#1e2761; --accent2:#6a3b8a; --soft:#eaf1f8;
+  --shadow:0 2px 8px rgba(30,39,97,0.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text2);min-height:100vh}
+
+/* Login overlay */
+#loginOverlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e2761 0%,#6a3b8a 100%);display:flex;align-items:center;justify-content:center;z-index:100}
+#loginBox{background:#fff;padding:40px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.2);width:380px;max-width:90vw}
+#loginBox h1{color:var(--accent);margin-bottom:8px;font-size:22px}
+#loginBox p{color:var(--text3);font-size:13px;margin-bottom:20px}
+#loginBox input{width:100%;padding:10px 12px;margin-bottom:12px;border:1px solid var(--border);border-radius:6px;font-size:14px}
+#loginBox button{width:100%;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer}
+#loginBox button:hover{background:#2a3a7a}
+#loginErr{color:var(--err);font-size:12px;margin-top:8px;min-height:16px}
+
+/* Top nav */
+.top-nav{background:linear-gradient(135deg,#1e2761 0%,#1d3a5f 100%);color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow)}
+.top-nav h1{font-size:18px;font-weight:600}
+.top-nav .user{display:flex;align-items:center;gap:10px;font-size:13px}
+.top-nav button{padding:6px 12px;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:4px;cursor:pointer;font-size:12px}
+.top-nav button:hover{background:rgba(255,255,255,0.25)}
+
+/* Tabs nav */
+.tabs-nav{background:#fff;border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:4px;overflow-x:auto}
+.tabs-nav button{padding:14px 18px;background:transparent;color:var(--text3);border:none;cursor:pointer;font-size:13px;font-weight:600;border-bottom:3px solid transparent;white-space:nowrap}
+.tabs-nav button.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tabs-nav button:hover{color:var(--accent)}
+.tabs-nav .badge-soon{background:#f3f4f6;color:#6b7280;font-size:9px;padding:2px 6px;border-radius:8px;margin-left:4px;font-weight:700}
+
+/* Content */
+#main{padding:24px;max-width:1400px;margin:0 auto}
+.section-title{color:var(--text1);font-size:18px;font-weight:700;margin-bottom:4px}
+.section-sub{color:var(--text3);font-size:13px;margin-bottom:16px}
+
+/* KPI cards */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:24px}
+.kpi{background:var(--card);border-radius:10px;padding:16px;box-shadow:var(--shadow);border-left:4px solid var(--info);position:relative}
+.kpi .label{color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600}
+.kpi .value{color:var(--text1);font-size:30px;font-weight:700;margin:4px 0;font-family:'Cambria',serif}
+.kpi .sub{color:var(--text3);font-size:11px}
+.kpi.ok{border-left-color:var(--ok)}
+.kpi.warn{border-left-color:var(--warn)}
+.kpi.err{border-left-color:var(--err)}
+.kpi .emoji{position:absolute;top:12px;right:14px;font-size:22px;opacity:0.4}
+
+/* Cards */
+.card{background:var(--card);border-radius:10px;padding:20px;box-shadow:var(--shadow);margin-bottom:18px}
+.card h3{color:var(--text1);font-size:15px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card h3 .em{font-size:18px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+/* Tablas */
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--soft);color:var(--text1);padding:10px 8px;text-align:left;font-weight:600;border-bottom:2px solid var(--border);position:sticky;top:0}
+tbody td{padding:9px 8px;border-bottom:1px solid #eef2f5}
+tbody tr:hover{background:#fafbfd}
+.center{text-align:center}
+.right{text-align:right}
+
+/* Badges */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;color:#fff}
+.b-ok{background:var(--ok)}
+.b-warn{background:var(--warn)}
+.b-err{background:var(--err)}
+.b-info{background:var(--info)}
+.b-gray{background:#9ca3af}
+
+/* Alerts */
+.alert{padding:12px 16px;border-radius:8px;font-size:13px;margin-bottom:14px;border-left:4px solid}
+.alert.info{background:#eff6ff;border-color:#1d3a5f;color:#1e3a5f}
+.alert.warn{background:#fff3e6;border-color:#d97706;color:#92400e}
+.alert.err{background:#fcebe8;border-color:#a34434;color:#92200e}
+.alert.success{background:#e6f2ea;border-color:#2e7d4a;color:#166534}
+
+/* Empty state */
+.empty{padding:40px;text-align:center;color:var(--text3)}
+.empty .em{font-size:48px;margin-bottom:10px}
+
+/* Soon */
+.soon{padding:60px 30px;text-align:center;color:var(--text3);background:var(--card);border-radius:10px;box-shadow:var(--shadow)}
+.soon .big{font-size:60px;margin-bottom:12px}
+.soon h3{color:var(--text1);font-size:20px;margin-bottom:8px}
+.soon ul{list-style:none;max-width:400px;margin:16px auto 0;text-align:left;font-size:13px;color:var(--text2)}
+.soon ul li{padding:6px 0;border-bottom:1px solid var(--border)}
+.soon ul li::before{content:"▪";margin-right:8px;color:var(--accent2)}
+
+.hidden{display:none}
+
+/* Progress bar */
+.bar{height:8px;background:#eef2f5;border-radius:4px;overflow:hidden}
+.bar>span{display:block;height:100%;background:var(--accent);border-radius:4px;transition:width 0.3s}
+.bar.ok>span{background:var(--ok)}
+.bar.warn>span{background:var(--warn)}
+.bar.err>span{background:var(--err)}
+
+/* Chart (CSS bar chart) */
+.hbars{display:flex;flex-direction:column;gap:10px}
+.hbar-row{display:grid;grid-template-columns:120px 1fr 60px;align-items:center;gap:10px;font-size:12px}
+.hbar-row .lbl{font-weight:600;color:var(--text2)}
+.hbar-row .val{font-weight:700;color:var(--text1);text-align:right}
+.hbar{height:16px;background:#eef2f5;border-radius:4px;overflow:hidden;position:relative}
+.hbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--accent) 0%,var(--accent2) 100%);border-radius:4px;transition:width 0.3s}
+.hbar.ok>span{background:var(--ok)}
+.hbar.warn>span{background:var(--warn)}
+.hbar.err>span{background:var(--err)}
+
+/* Grade grid */
+.grado-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.grado-card{background:var(--soft);border-radius:8px;padding:12px;text-align:center;border:1px solid var(--border)}
+.grado-card .nombre{font-size:16px;font-weight:700;color:var(--text1);margin-bottom:4px}
+.grado-card .num{font-size:28px;font-weight:700;color:var(--accent);font-family:Cambria,serif}
+.grado-card .sub{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px}
+.grado-card.alert{background:#fff3e6;border-color:var(--warn)}
+.grado-card.danger{background:#fcebe8;border-color:var(--err)}
+
+/* Loading */
+.loading{text-align:center;padding:40px;color:var(--text3)}
+.loading::after{content:'...';animation:dots 1.5s infinite}
+@keyframes dots{0%,20%{content:'.'}40%{content:'..'}60%,100%{content:'...'}}
+
+@media (max-width:700px){
+  #main{padding:12px}
+  .top-nav{padding:10px 14px;flex-wrap:wrap;gap:8px}
+  .tabs-nav{padding:0 10px}
+  .tabs-nav button{padding:12px 10px;font-size:12px}
+  .kpi .value{font-size:22px}
+  .card{padding:14px}
+  .hbar-row{grid-template-columns:90px 1fr 50px;font-size:11px}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginOverlay">
+  <div id="loginBox">
+    <h1>📈 Panel Dirección</h1>
+    <p>Colegio FASTA Juan Pablo II — Indicadores institucionales.<br>Acceso restringido a Dirección y Coordinación.</p>
+    <input type="email" id="loginEmail" placeholder="email@juanpablo2.redfasta.edu.ar" autocomplete="username">
+    <input type="password" id="loginPass" placeholder="Contraseña" autocomplete="current-password">
+    <button onclick="iniciarSesion()">Entrar</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
+
+<!-- TOP NAV -->
+<nav class="top-nav" id="topNav" style="display:none">
+  <h1>📈 Panel Dirección — FASTA JP II</h1>
+  <div class="user">
+    <span id="userLabel">—</span>
+    <button onclick="volverPlataforma()" title="Volver al launcher">🏠 Plataforma</button>
+    <button onclick="recargarDatos()" title="Recargar datos desde Supabase">🔄 Recargar</button>
+    <button onclick="cerrarSesion()">Salir</button>
+  </div>
+</nav>
+
+<!-- TABS -->
+<div class="tabs-nav" id="tabsNav" style="display:none">
+  <button class="active" onclick="showTab('resumen')" data-tab="resumen">📊 Resumen Ejecutivo</button>
+  <button onclick="showTab('pedagogico')" data-tab="pedagogico">📚 Pedagógico</button>
+  <button onclick="showTab('convivencia')" data-tab="convivencia">🤝 Convivencia</button>
+  <button onclick="showTab('inclusion')" data-tab="inclusion">🧠 Inclusión & SOE</button>
+  <button onclick="showTab('promocion')" data-tab="promocion">🎓 Proyección Promoción</button>
+  <button onclick="showTab('actividad')" data-tab="actividad">👩‍🏫 Actividad Docente</button>
+</div>
+
+<!-- MAIN -->
+<main id="main" style="display:none">
+
+  <!-- Tab Resumen -->
+  <div id="tab-resumen">
+    <h2 class="section-title">📊 Resumen Ejecutivo</h2>
+    <p class="section-sub">Panorama institucional del nivel primario — año lectivo <span id="anoResumen">2026</span></p>
+
+    <div class="kpi-grid" id="kpiGrid">
+      <div class="loading">Cargando indicadores</div>
+    </div>
+
+    <div class="card">
+      <h3><span class="em">🏫</span> Promedio y riesgo por grado</h3>
+      <div class="grado-grid" id="gradoGridResumen"><div class="loading">Cargando</div></div>
+    </div>
+
+    <div class="row" style="gap:18px;align-items:stretch">
+      <div class="card" style="flex:1;min-width:280px">
+        <h3><span class="em">📊</span> Carga de evaluaciones por período</h3>
+        <div id="evalsPeriodo"><div class="loading">Cargando</div></div>
+      </div>
+      <div class="card" style="flex:1;min-width:280px">
+        <h3><span class="em">⚠️</span> Alertas institucionales</h3>
+        <div id="alertasInst"><div class="loading">Cargando</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Pedagógico -->
+  <div id="tab-pedagogico" class="hidden">
+    <h2 class="section-title">📚 Pedagógico</h2>
+    <p class="section-sub">Promedios, materias y aprendizajes base — análisis por grado y período</p>
+
+    <div class="card">
+      <h3><span class="em">📈</span> Promedio por grado × período</h3>
+      <div id="tablaPromedios"><div class="loading">Cargando</div></div>
+    </div>
+
+    <div class="row" style="gap:18px;align-items:stretch">
+      <div class="card" style="flex:1;min-width:300px">
+        <h3><span class="em">🔴</span> Top alumnos en riesgo académico</h3>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:10px">3 o más materias con promedio anual &lt; 7. Los primeros 20.</p>
+        <div id="riesgoAcad"><div class="loading">Cargando</div></div>
+      </div>
+      <div class="card" style="flex:1;min-width:300px">
+        <h3><span class="em">📉</span> Materias peor evaluadas</h3>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:10px">Ranking de las 15 combinaciones materia-grado con menor promedio institucional.</p>
+        <div id="matPeores"><div class="loading">Cargando</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="em">🎯</span> Aprendizajes Base con menor logro</h3>
+      <p style="font-size:11px;color:var(--text3);margin-bottom:10px">Los 15 AB del colegio donde el promedio institucional es más bajo. Útil para planificar refuerzos.</p>
+      <div id="abBajos"><div class="loading">Cargando</div></div>
+    </div>
+  </div>
+
+  <!-- Tab Convivencia -->
+  <div id="tab-convivencia" class="hidden">
+    <div class="soon">
+      <div class="big">🤝</div>
+      <h3>Convivencia — Próxima iteración</h3>
+      <p style="margin:10px 0 0;font-size:13px">En desarrollo. Esta sección va a incluir:</p>
+      <ul>
+        <li>Llamados por grado y tendencia mensual</li>
+        <li>Reconocimientos por virtud (Sembrando Virtudes)</li>
+        <li>Top 10 alumnos con más llamados</li>
+        <li>Top 10 alumnos con más reconocimientos</li>
+        <li>Patrones por aspecto / falta</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Tab Inclusión -->
+  <div id="tab-inclusion" class="hidden">
+    <div class="soon">
+      <div class="big">🧠</div>
+      <h3>Inclusión & SOE — Próxima iteración</h3>
+      <p style="margin:10px 0 0;font-size:13px">En desarrollo. Esta sección va a incluir:</p>
+      <ul>
+        <li>Cantidad de CUD / DAI / PPI por grado</li>
+        <li>Casos SOE por área (académico, vocacional, emocional, familia)</li>
+        <li>Casos abiertos vs en proceso vs cerrados</li>
+        <li>Tiempo promedio de atención</li>
+        <li>Carga de trabajo por psicopedagoga</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Tab Promoción -->
+  <div id="tab-promocion" class="hidden">
+    <div class="soon">
+      <div class="big">🎓</div>
+      <h3>Proyección de Promoción — Próxima iteración</h3>
+      <p style="margin:10px 0 0;font-size:13px">En desarrollo. Esta sección va a incluir:</p>
+      <ul>
+        <li>Por grado: cuántos promocionan / intensifican / repiten</li>
+        <li>Alertas específicas de 7° (pasan a Secundario)</li>
+        <li>Proyección a cierre de ciclo según notas actuales</li>
+        <li>Alumnos limítrofes (al borde entre categorías)</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Tab Actividad -->
+  <div id="tab-actividad" class="hidden">
+    <div class="soon">
+      <div class="big">👩‍🏫</div>
+      <h3>Actividad Docente — Próxima iteración</h3>
+      <p style="margin:10px 0 0;font-size:13px">En desarrollo. Esta sección va a incluir:</p>
+      <ul>
+        <li>Docentes al día (registros recientes)</li>
+        <li>Docentes con atraso de carga (> 14 días sin registrar)</li>
+        <li>Evaluaciones y notas cargadas por docente este mes</li>
+        <li>Llamados y reconocimientos cargados por docente</li>
+        <li>Ranking de actividad docente del colegio</li>
+      </ul>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIGURACIÓN SUPABASE
+// ═══════════════════════════════════════════════════════════════════════════
+const SB_URL = "https://navsfrfgyyjxckmincmb.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5hdnNmcmZneXlqeGNrbWluY21iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3MDg0ODAsImV4cCI6MjEwNDI4NDQ4MH0.IWCyH9HvskRRU6pG4e2_1BvQI84qPnSnBmiQBa_q45o";
+const sb = supabase.createClient(SB_URL, SB_KEY);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ═══════════════════════════════════════════════════════════════════════════
+let usuarioActual = null;
+let tabActual = 'resumen';
+let datos = {
+  alumnos: [],
+  materias: [],
+  evaluaciones: [],
+  notas: [],
+  aprendizajes: [],
+  evalAprendizajes: [], // many-to-many evaluacion ↔ aprendizaje
+  registros: [],        // llamados Convivencia
+  reconocimientos: [],  // virtudes Convivencia
+  casosSoe: [],
+  docenteAsignaciones: [],
+  usuarios: []
+};
+const anoEscolar = new Date().getFullYear();
+
+function escH(s){
+  if(s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Grado DB (7º grado) ↔ UI (7°)
+function gradoAUI(g){ if(!g) return g; return String(g).replace(/º grado/,'°').replace(/\s+/g,'').trim(); }
+function gradoADB(g){ if(!g) return g; return String(g).replace(/°/,'º grado'); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LOGIN
+// ═══════════════════════════════════════════════════════════════════════════
+async function iniciarSesion(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errDiv = document.getElementById('loginErr');
+  errDiv.textContent = '';
+  if(!email || !pass){ errDiv.textContent = 'Completá email y contraseña.'; return; }
+
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if(error){ errDiv.textContent = error.message; return; }
+    await cargarUsuarioYPermisos(data.user);
+  } catch(e){ errDiv.textContent = 'Error: ' + e.message; }
+}
+
+async function verificarSesion(){
+  const { data: { session } } = await sb.auth.getSession();
+  if(session && session.user){
+    await cargarUsuarioYPermisos(session.user);
+  }
+}
+
+async function cargarUsuarioYPermisos(authUser){
+  const errDiv = document.getElementById('loginErr');
+  // Buscar en public.usuarios
+  const { data: u, error } = await sb.from('usuarios')
+    .select('id, email, nombre, rol')
+    .eq('id', authUser.id)
+    .single();
+  if(error || !u){
+    errDiv.textContent = 'Usuario no encontrado en la plataforma.';
+    await sb.auth.signOut();
+    return;
+  }
+  // Verificar rol autorizado
+  const rolesPermitidos = ['admin','direccion','coordinador','desarrollador'];
+  if(!rolesPermitidos.includes(u.rol)){
+    errDiv.textContent = '⛔ Esta app está restringida a Dirección y Coordinación. Tu rol (' + u.rol + ') no tiene acceso.';
+    await sb.auth.signOut();
+    return;
+  }
+  usuarioActual = u;
+  mostrarApp();
+  await cargarDatos();
+}
+
+function mostrarApp(){
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('topNav').style.display = 'flex';
+  document.getElementById('tabsNav').style.display = 'flex';
+  document.getElementById('main').style.display = 'block';
+  document.getElementById('userLabel').textContent = `${usuarioActual.nombre || usuarioActual.email} · ${usuarioActual.rol.toUpperCase()}`;
+  document.getElementById('anoResumen').textContent = anoEscolar;
+}
+
+async function cerrarSesion(){
+  if(!confirm('¿Cerrar sesión?')) return;
+  await sb.auth.signOut();
+  location.reload();
+}
+
+function volverPlataforma(){
+  window.location.href = 'https://manologuevara2013-png.github.io/APP-GESTION-INTEGRAL-EDUCATIVA-COLEGIO-JUAN-PABLO-ll/';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NAVEGACIÓN TABS
+// ═══════════════════════════════════════════════════════════════════════════
+function showTab(t){
+  tabActual = t;
+  document.querySelectorAll('.tabs-nav button').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === t);
+  });
+  ['resumen','pedagogico','convivencia','inclusion','promocion','actividad'].forEach(id => {
+    const el = document.getElementById('tab-' + id);
+    if(el) el.classList.toggle('hidden', id !== t);
+  });
+  if(t === 'resumen') renderResumen();
+  if(t === 'pedagogico') renderPedagogico();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CARGA DE DATOS DESDE SUPABASE
+// ═══════════════════════════════════════════════════════════════════════════
+async function cargarDatos(){
+  try {
+    const [alumnos, materias, evaluaciones, notas, aprendizajes, evalAp, registros, reconocimientos, casosSoe, asignaciones, usuarios] = await Promise.all([
+      sb.from('alumnos').select('id, nombre, grado, nivel, activo, ano_escolar_actual, tiene_cud, tiene_dai, tiene_ppi').eq('activo', true),
+      sb.from('materias').select('id, nombre, grado, area_pedagogica'),
+      sb.from('evaluaciones').select('id, materia, grado, periodo, tipo, fecha, ano_escolar, docente_email, created_at').eq('ano_escolar', anoEscolar),
+      sb.from('notas').select('id, evaluacion_id, alumno_id, nota, ausente, docente_email, created_at'),
+      sb.from('aprendizajes').select('id, materia_id, codigo, eje, nombre, origen, estado').eq('estado','aprobado'),
+      sb.from('evaluaciones_aprendizajes').select('evaluacion_id, aprendizaje_id'),
+      sb.from('registros').select('id, alumno_id, fecha, equiv, aspecto, falta_id').gte('fecha', anoEscolar + '-01-01'),
+      sb.from('reconocimientos').select('id, alumno_id, fecha, virtud_nombre, clase').gte('fecha', anoEscolar + '-01-01'),
+      sb.from('casos_soe').select('id, alumno_id, area, estado, prioridad, fecha_apertura, fecha_cierre, asignado_a'),
+      sb.from('docente_asignaciones').select('email, nombre_completo, rol, tipo_asignacion, grado, materia'),
+      sb.from('usuarios').select('id, email, nombre, rol')
+    ]);
+
+    datos.alumnos = alumnos.data || [];
+    datos.materias = materias.data || [];
+    datos.evaluaciones = evaluaciones.data || [];
+    datos.notas = notas.data || [];
+    datos.aprendizajes = aprendizajes.data || [];
+    datos.evalAprendizajes = evalAp.data || [];
+    datos.registros = registros.data || [];
+    datos.reconocimientos = reconocimientos.data || [];
+    datos.casosSoe = casosSoe.data || [];
+    datos.docenteAsignaciones = asignaciones.data || [];
+    datos.usuarios = usuarios.data || [];
+
+    console.log('✓ Datos cargados:', {
+      alumnos: datos.alumnos.length,
+      materias: datos.materias.length,
+      evals: datos.evaluaciones.length,
+      notas: datos.notas.length,
+      AB: datos.aprendizajes.length,
+      llamados: datos.registros.length,
+      reconocimientos: datos.reconocimientos.length,
+      casosSoe: datos.casosSoe.length
+    });
+
+    showTab('resumen');
+  } catch(e){
+    console.error('Error cargando datos:', e);
+    alert('❌ Error al cargar datos:\n\n' + e.message);
+  }
+}
+
+async function recargarDatos(){
+  const btn = event?.target;
+  if(btn){ btn.disabled = true; btn.textContent = '⏳...'; }
+  await cargarDatos();
+  if(btn){ btn.disabled = false; btn.textContent = '🔄 Recargar'; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS DE CÁLCULO
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Promedio por AB para un alumno en una materia-grado-período (Res 4778/26: por AB primero)
+function promedioAlumnoMatPer(alumnoId, materia, grado, periodo){
+  // Agrupar notas por aprendizaje_id
+  const evs = datos.evaluaciones.filter(e => e.materia === materia && e.grado === grado && e.periodo === periodo);
+  if(!evs.length) return null;
+  const notasPorAB = {}; // ab_id → [notas]
+  const sinAB = []; // notas sin AB
+  evs.forEach(ev => {
+    const nota = datos.notas.find(n => n.evaluacion_id === ev.id && n.alumno_id === alumnoId && !n.ausente);
+    if(!nota) return;
+    const ablist = datos.evalAprendizajes.filter(ea => ea.evaluacion_id === ev.id).map(x => x.aprendizaje_id);
+    if(ablist.length === 0){
+      sinAB.push(parseFloat(nota.nota));
+    } else {
+      ablist.forEach(abId => {
+        if(!notasPorAB[abId]) notasPorAB[abId] = [];
+        notasPorAB[abId].push(parseFloat(nota.nota));
+      });
+    }
+  });
+  const buckets = [];
+  Object.values(notasPorAB).forEach(arr => {
+    if(arr.length) buckets.push(arr.reduce((a,b)=>a+b,0) / arr.length);
+  });
+  if(sinAB.length) buckets.push(sinAB.reduce((a,b)=>a+b,0) / sinAB.length);
+  if(!buckets.length) return null;
+  return buckets.reduce((a,b)=>a+b,0) / buckets.length;
+}
+
+// Promedio anual (promedio de los periodos)
+function promedioAlumnoMatAnual(alumnoId, materia, grado){
+  const periodos = ['Primer Período', 'Segundo Período'];
+  const vals = periodos.map(p => promedioAlumnoMatPer(alumnoId, materia, grado, p)).filter(v => v !== null);
+  if(!vals.length) return null;
+  return vals.reduce((a,b)=>a+b,0) / vals.length;
+}
+
+// Promedio general del alumno (promedio de sus materias anuales)
+function promedioGeneralAlumno(alumno){
+  const mats = datos.materias.filter(m => m.grado === gradoADB(alumno.grado));
+  const vals = mats.map(m => promedioAlumnoMatAnual(alumno.id, m.nombre, gradoADB(alumno.grado))).filter(v => v !== null);
+  if(!vals.length) return null;
+  return vals.reduce((a,b)=>a+b,0) / vals.length;
+}
+
+// Materias en riesgo del alumno (promedio anual < 7)
+function materiasEnRiesgo(alumno){
+  const mats = datos.materias.filter(m => m.grado === gradoADB(alumno.grado));
+  return mats.filter(m => {
+    const p = promedioAlumnoMatAnual(alumno.id, m.nombre, gradoADB(alumno.grado));
+    return p !== null && p < 7;
+  });
+}
+
+// Promedio del grado (promedio de los promedios generales de alumnos de ese grado)
+function promedioGrado(gradoUI){
+  const als = datos.alumnos.filter(a => a.grado === gradoUI);
+  const vals = als.map(a => promedioGeneralAlumno(a)).filter(v => v !== null);
+  if(!vals.length) return null;
+  return vals.reduce((a,b)=>a+b,0) / vals.length;
+}
+
+// Promedio institucional de una materia-grado
+function promedioInstMateriaGrado(materia, gradoDB){
+  const als = datos.alumnos.filter(a => gradoADB(a.grado) === gradoDB);
+  const vals = als.map(a => promedioAlumnoMatAnual(a.id, materia, gradoDB)).filter(v => v !== null);
+  if(!vals.length) return null;
+  return {
+    promedio: vals.reduce((a,b)=>a+b,0) / vals.length,
+    cobertura: vals.length,
+    total: als.length
+  };
+}
+
+// Promedio institucional de un AB
+function promedioInstAB(abId){
+  // Encuentro todas las evaluaciones que incluyen este AB
+  const evIds = datos.evalAprendizajes.filter(ea => ea.aprendizaje_id === abId).map(x => x.evaluacion_id);
+  if(!evIds.length) return null;
+  // Todas las notas de esas evaluaciones
+  const notas = datos.notas.filter(n => evIds.includes(n.evaluacion_id) && !n.ausente).map(n => parseFloat(n.nota));
+  if(!notas.length) return null;
+  return {
+    promedio: notas.reduce((a,b)=>a+b,0) / notas.length,
+    cantidad: notas.length
+  };
+}
+
+function colorNota(n){
+  if(n === null || n === undefined) return 'b-gray';
+  if(n >= 7) return 'b-ok';
+  if(n >= 6) return 'b-warn';
+  return 'b-err';
+}
+
+function fmt(n){
+  if(n === null || n === undefined) return '—';
+  return (Math.round(n * 100) / 100).toFixed(2);
+}
+
+const GRADOS = ['1°','2°','3°','4°','5°','6°','7°'];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER: RESUMEN EJECUTIVO
+// ═══════════════════════════════════════════════════════════════════════════
+function renderResumen(){
+  renderKPIs();
+  renderGradoGridResumen();
+  renderEvalsPeriodo();
+  renderAlertasInst();
+}
+
+function renderKPIs(){
+  const el = document.getElementById('kpiGrid');
+
+  const alumnosAct = datos.alumnos.length;
+  const docentesPlantel = new Set(datos.docenteAsignaciones.map(a => a.email)).size;
+
+  // Promedio general del colegio
+  const promsGenerales = datos.alumnos.map(a => promedioGeneralAlumno(a)).filter(v => v !== null);
+  const promCol = promsGenerales.length ? promsGenerales.reduce((a,b)=>a+b,0) / promsGenerales.length : null;
+
+  // Llamados del mes actual
+  const now = new Date();
+  const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
+  const llamadosMes = datos.registros.filter(r => r.fecha >= inicioMes).length;
+
+  // Casos SOE activos (todo lo que no sea cerrado y no sea solicitado)
+  const soeActivos = datos.casosSoe.filter(c => c.estado && c.estado !== 'cerrado' && c.estado !== 'solicitado').length;
+  const soeSolicitudes = datos.casosSoe.filter(c => c.estado === 'solicitado').length;
+
+  // Alumnos en riesgo (3+ materias < 7)
+  const enRiesgo = datos.alumnos.filter(a => materiasEnRiesgo(a).length >= 3).length;
+
+  const kpis = [
+    { label: 'Alumnos activos', value: alumnosAct, sub: 'Nivel primario', emoji: '👨‍🎓', cls: 'ok' },
+    { label: 'Docentes del plantel', value: docentesPlantel, sub: 'Incluye titulares, materia y psico', emoji: '👩‍🏫', cls: '' },
+    { label: 'Promedio del colegio', value: promCol !== null ? fmt(promCol) : '—', sub: 'Promedio anual general', emoji: '📊', cls: (promCol !== null && promCol >= 7) ? 'ok' : 'warn' },
+    { label: 'Llamados del mes', value: llamadosMes, sub: now.toLocaleDateString('es-AR', {month:'long', year:'numeric'}), emoji: '⚠️', cls: llamadosMes > 15 ? 'warn' : '' },
+    { label: 'Casos SOE activos', value: soeActivos, sub: soeSolicitudes > 0 ? `+ ${soeSolicitudes} solicitudes pendientes` : 'Abiertos o en proceso', emoji: '🧭', cls: soeSolicitudes > 0 ? 'warn' : '' },
+    { label: 'Alumnos en riesgo', value: enRiesgo, sub: '3 o más materias &lt; 7', emoji: '🔴', cls: enRiesgo > 10 ? 'err' : enRiesgo > 0 ? 'warn' : 'ok' }
+  ];
+
+  el.innerHTML = kpis.map(k => `
+    <div class="kpi ${k.cls}">
+      <span class="emoji">${k.emoji}</span>
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value}</div>
+      <div class="sub">${k.sub}</div>
+    </div>
+  `).join('');
+}
+
+function renderGradoGridResumen(){
+  const el = document.getElementById('gradoGridResumen');
+  const html = GRADOS.map(g => {
+    const als = datos.alumnos.filter(a => a.grado === g);
+    const prom = promedioGrado(g);
+    const enRiesgo = als.filter(a => materiasEnRiesgo(a).length >= 3).length;
+    const cls = enRiesgo >= 5 ? 'danger' : enRiesgo >= 2 ? 'alert' : '';
+    return `<div class="grado-card ${cls}">
+      <div class="nombre">${g}</div>
+      <div class="num">${prom !== null ? fmt(prom) : '—'}</div>
+      <div class="sub">${als.length} alumnos</div>
+      ${enRiesgo > 0 ? `<div style="font-size:11px;color:var(--err);margin-top:4px;font-weight:700">⚠ ${enRiesgo} en riesgo</div>` : ''}
+    </div>`;
+  }).join('');
+  el.innerHTML = html;
+}
+
+function renderEvalsPeriodo(){
+  const el = document.getElementById('evalsPeriodo');
+  const periodos = ['Primer Período','Segundo Período','Calificación Final','Intensificación','Acreditación'];
+  const max = Math.max(1, ...periodos.map(p => datos.evaluaciones.filter(e => e.periodo === p).length));
+  const html = `<div class="hbars">${periodos.map(p => {
+    const n = datos.evaluaciones.filter(e => e.periodo === p).length;
+    const pct = (n / max) * 100;
+    return `<div class="hbar-row">
+      <div class="lbl">${p.replace(' Período','')}</div>
+      <div class="hbar"><span style="width:${pct}%"></span></div>
+      <div class="val">${n}</div>
+    </div>`;
+  }).join('')}</div>`;
+  el.innerHTML = html;
+}
+
+function renderAlertasInst(){
+  const el = document.getElementById('alertasInst');
+  const alertas = [];
+
+  // Solicitudes SOE pendientes
+  const soeSolicitudes = datos.casosSoe.filter(c => c.estado === 'solicitado').length;
+  if(soeSolicitudes > 0){
+    alertas.push({ tipo: 'warn', texto: `${soeSolicitudes} solicitud(es) SOE sin aceptar. Revisar en app SOE.` });
+  }
+
+  // Casos SOE sin asignar
+  const soeSinAsignar = datos.casosSoe.filter(c => !c.asignado_a && c.estado && c.estado !== 'cerrado').length;
+  if(soeSinAsignar > 0){
+    alertas.push({ tipo: 'warn', texto: `${soeSinAsignar} caso(s) SOE abiertos sin psicopedagoga asignada.` });
+  }
+
+  // Alumnos con muchos llamados en el período
+  const alumnosConLlamados = {};
+  datos.registros.forEach(r => {
+    alumnosConLlamados[r.alumno_id] = (alumnosConLlamados[r.alumno_id] || 0) + (r.equiv || 1);
+  });
+  const altoLlamados = Object.entries(alumnosConLlamados).filter(([_,v]) => v >= 10).length;
+  if(altoLlamados > 0){
+    alertas.push({ tipo: 'err', texto: `${altoLlamados} alumno(s) con 10+ puntos acumulados de llamados. Evaluar derivación al SOE.` });
+  }
+
+  // Grados sin registros recientes
+  const hace7dias = new Date(Date.now() - 7*86400000).toISOString().slice(0,10);
+  const evalsRecientes = datos.evaluaciones.filter(e => e.created_at && e.created_at.slice(0,10) >= hace7dias).length;
+  if(evalsRecientes === 0){
+    alertas.push({ tipo: 'warn', texto: `No se cargaron evaluaciones en los últimos 7 días.` });
+  }
+
+  if(!alertas.length){
+    el.innerHTML = '<div class="alert success">✓ No hay alertas institucionales activas.</div>';
+    return;
+  }
+
+  el.innerHTML = alertas.map(a => `<div class="alert ${a.tipo === 'err' ? 'err' : a.tipo === 'warn' ? 'warn' : 'info'}">${a.tipo === 'err' ? '🚨' : '⚠'} ${escH(a.texto)}</div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER: PEDAGÓGICO
+// ═══════════════════════════════════════════════════════════════════════════
+function renderPedagogico(){
+  renderTablaPromedios();
+  renderRiesgoAcad();
+  renderMatPeores();
+  renderABBajos();
+}
+
+function renderTablaPromedios(){
+  const el = document.getElementById('tablaPromedios');
+  const periodos = ['Primer Período','Segundo Período'];
+  let html = '<table><thead><tr><th>Grado</th><th class="center">Alumnos</th>';
+  periodos.forEach(p => { html += `<th class="center">${p.replace(' Período','')}</th>`; });
+  html += '<th class="center">Anual</th><th class="center">Alertas</th></tr></thead><tbody>';
+
+  GRADOS.forEach(g => {
+    const als = datos.alumnos.filter(a => a.grado === g);
+    html += `<tr><td><strong>${g}</strong></td><td class="center">${als.length}</td>`;
+    periodos.forEach(p => {
+      const gradoDB = gradoADB(g);
+      const vals = [];
+      als.forEach(al => {
+        const mats = datos.materias.filter(m => m.grado === gradoDB);
+        mats.forEach(m => {
+          const v = promedioAlumnoMatPer(al.id, m.nombre, gradoDB, p);
+          if(v !== null) vals.push(v);
+        });
+      });
+      const prom = vals.length ? vals.reduce((a,b)=>a+b,0) / vals.length : null;
+      const col = colorNota(prom);
+      html += `<td class="center"><span class="badge ${col}">${prom !== null ? fmt(prom) : '—'}</span></td>`;
+    });
+    const anual = promedioGrado(g);
+    const colA = colorNota(anual);
+    html += `<td class="center"><span class="badge ${colA}">${anual !== null ? fmt(anual) : '—'}</span></td>`;
+    const riesgo = als.filter(a => materiasEnRiesgo(a).length >= 3).length;
+    html += `<td class="center">${riesgo > 0 ? `<span style="color:var(--err);font-weight:700">⚠ ${riesgo}</span>` : '<span style="color:var(--ok)">✓</span>'}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderRiesgoAcad(){
+  const el = document.getElementById('riesgoAcad');
+  const enRiesgo = datos.alumnos.map(a => {
+    const mats = materiasEnRiesgo(a);
+    const prom = promedioGeneralAlumno(a);
+    return { alumno: a, cantMats: mats.length, prom: prom, materias: mats.map(m => m.nombre) };
+  }).filter(x => x.cantMats >= 3)
+    .sort((a,b) => (b.cantMats - a.cantMats) || ((a.prom || 0) - (b.prom || 0)))
+    .slice(0, 20);
+
+  if(!enRiesgo.length){
+    el.innerHTML = '<div class="alert success">✓ Ningún alumno tiene 3+ materias en riesgo.</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Alumno</th><th class="center">Grado</th><th class="center">Promedio</th><th class="center">Mat. &lt;7</th></tr></thead><tbody>';
+  enRiesgo.forEach(x => {
+    html += `<tr>
+      <td><strong>${escH(x.alumno.nombre)}</strong><br><span style="font-size:10px;color:var(--text3)">${escH(x.materias.join(', '))}</span></td>
+      <td class="center">${x.alumno.grado}</td>
+      <td class="center"><span class="badge ${colorNota(x.prom)}">${x.prom !== null ? fmt(x.prom) : '—'}</span></td>
+      <td class="center"><strong style="color:var(--err)">${x.cantMats}</strong></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderMatPeores(){
+  const el = document.getElementById('matPeores');
+  const combos = [];
+  datos.materias.forEach(m => {
+    const r = promedioInstMateriaGrado(m.nombre, m.grado);
+    if(r !== null){
+      combos.push({ materia: m.nombre, grado: gradoAUI(m.grado), ...r });
+    }
+  });
+  combos.sort((a,b) => a.promedio - b.promedio);
+  const peores = combos.slice(0, 15);
+
+  if(!peores.length){
+    el.innerHTML = '<div class="empty"><div class="em">📊</div>Aún no hay suficientes datos para generar el ranking.</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Materia</th><th class="center">Grado</th><th class="center">Promedio</th><th class="center">Cobertura</th></tr></thead><tbody>';
+  peores.forEach(c => {
+    html += `<tr>
+      <td><strong>${escH(c.materia)}</strong></td>
+      <td class="center">${c.grado}</td>
+      <td class="center"><span class="badge ${colorNota(c.promedio)}">${fmt(c.promedio)}</span></td>
+      <td class="center" style="font-size:11px;color:var(--text3)">${c.cobertura}/${c.total}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderABBajos(){
+  const el = document.getElementById('abBajos');
+  const stats = [];
+  datos.aprendizajes.forEach(ab => {
+    const r = promedioInstAB(ab.id);
+    if(r !== null && r.cantidad >= 3){
+      // Buscar la materia y grado
+      const m = datos.materias.find(mm => mm.id === ab.materia_id);
+      stats.push({
+        codigo: ab.codigo,
+        nombre: ab.nombre,
+        eje: ab.eje,
+        materia: m ? m.nombre : '—',
+        grado: m ? gradoAUI(m.grado) : '—',
+        promedio: r.promedio,
+        cantidad: r.cantidad
+      });
+    }
+  });
+  stats.sort((a,b) => a.promedio - b.promedio);
+  const peores = stats.slice(0, 15);
+
+  if(!peores.length){
+    el.innerHTML = '<div class="empty"><div class="em">🎯</div>Aún no hay suficientes datos para ranking de AB (se requieren al menos 3 notas por AB).</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Código</th><th>Aprendizaje</th><th>Materia · Grado</th><th class="center">Promedio</th><th class="center">Notas</th></tr></thead><tbody>';
+  peores.forEach(s => {
+    html += `<tr>
+      <td><span style="font-family:monospace;font-size:11px;color:var(--text3)">${escH(s.codigo || '—')}</span></td>
+      <td><strong>${escH(s.nombre)}</strong><br><span style="font-size:10px;color:var(--text3)">${escH(s.eje)}</span></td>
+      <td>${escH(s.materia)} · ${s.grado}</td>
+      <td class="center"><span class="badge ${colorNota(s.promedio)}">${fmt(s.promedio)}</span></td>
+      <td class="center" style="font-size:11px;color:var(--text3)">${s.cantidad}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
+window.addEventListener('load', verificarSesion);
+
+// Enter en login
+['loginEmail','loginPass'].forEach(id => {
+  document.getElementById(id)?.addEventListener('keydown', e => {
+    if(e.key === 'Enter') iniciarSesion();
+  });
+});
+</script>
+
+</body>
+</html>
